@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Depo Takip">
+<title>Depo Takip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1013;
+    --bg-grade:#14171B;
+    --surface:#1A1D22;
+    --surface-2:#22262C;
+    --border:#2B3038;
+    --text:#F1F3F5;
+    --text-muted:#878E97;
+    --accent:#FFB020;
+    --accent-dim:#8A5D14;
+    --accent-ink:#1C1200;
+    --pos:#38D69C;
+    --pos-bg:#102821;
+    --danger:#FF5C5C;
+    --danger-bg:#341A1B;
+    --radius:14px;
+    --mono:'Space Mono',ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --display:'Oswald',-apple-system,sans-serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:radial-gradient(120% 90% at 15% 0%, var(--bg-grade) 0%, var(--bg) 55%);color:var(--text);font-family:var(--sans);height:100%;}
+  body{overflow-x:hidden;}
+  #app{max-width:520px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;position:relative;padding-bottom:calc(84px + env(safe-area-inset-bottom));}
+
+  .hazard{
+    height:5px;width:100%;flex-shrink:0;
+    background:repeating-linear-gradient(-45deg, var(--accent) 0 8px, #0E1013 8px 16px);
+    opacity:.9;
+  }
+
+  header.top{
+    padding:calc(16px + env(safe-area-inset-top)) 20px 16px;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,176,32,.05) 0 2px, transparent 2px 9px),
+      var(--bg);
+    position:sticky;top:0;z-index:5;
+    border-bottom:1px solid var(--border);
+  }
+  header.top .eyebrow{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--accent);
+    text-transform:uppercase;margin-bottom:2px;display:flex;align-items:center;gap:7px;
+  }
+  header.top .eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+  header.top h1{margin:2px 0 0;font-family:var(--display);font-size:26px;font-weight:600;letter-spacing:.01em;text-transform:uppercase;}
+
+  main{flex:1;padding:16px 16px 8px;}
+  section.view{display:none;animation:fade .18s ease;}
+  section.view.active{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  /* Dashboard */
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;}
+  .stat-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:14px 14px 13px 16px;position:relative;overflow:hidden;
+  }
+  .stat-card::before{
+    content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--text-muted);opacity:.5;
+  }
+  .stat-card .icon{opacity:.55;margin-bottom:10px;display:block;}
+  .stat-card .num{font-family:var(--display);font-size:30px;font-weight:600;line-height:1;letter-spacing:.01em;}
+  .stat-card .label{margin-top:5px;font-size:11.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;}
+  .stat-card.warn::before{background:var(--danger);}
+  .stat-card.warn .icon{color:var(--danger);opacity:.85;}
+  .stat-card.warn .num{color:var(--danger);}
+  .stat-card.pos::before{background:var(--pos);}
+  .stat-card.pos .icon{color:var(--pos);opacity:.85;}
+  .stat-card.pos .num{color:var(--pos);}
+  .stat-card.accent::before{background:var(--accent);}
+  .stat-card.accent .icon{color:var(--accent);opacity:.85;}
+  .stat-card.accent .num{color:var(--accent);}
+  .stat-card:not(.warn):not(.pos):not(.accent) .icon{color:var(--text);}
+
+  .section-title{
+    font-family:var(--display);font-size:14px;font-weight:600;color:var(--text);text-transform:uppercase;
+    letter-spacing:.05em;margin:26px 2px 10px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .section-title span.count{font-family:var(--mono);color:var(--accent);background:var(--surface-2);border:1px solid var(--border);padding:2px 9px;border-radius:20px;font-size:11px;}
+
+  .critical-item{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--danger-bg);border:1px solid #4A2529;border-radius:12px;padding:10px 12px;margin-bottom:8px;
+  }
+  .critical-item .name{font-weight:600;font-size:14px;}
+  .critical-item .meta{font-family:var(--mono);font-size:11px;color:#e8a3a6;margin-top:2px;}
+  .critical-item .qty{font-family:var(--mono);font-weight:700;color:var(--danger);font-size:15px;}
+
+  .empty{color:var(--text-muted);font-size:13.5px;padding:18px 4px;text-align:center;}
+
+  /* Search */
+  .search-bar{
+    display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);
+    border-radius:11px;padding:11px 14px;margin-bottom:16px;margin-top:4px;
+  }
+  .search-bar input{
+    background:none;border:none;outline:none;color:var(--text);font-size:15px;flex:1;font-family:var(--sans);
+  }
+  .search-bar input::placeholder{color:var(--text-muted);}
+  .search-bar svg{flex-shrink:0;}
+
+  /* Product row - shelf-label tag styling */
+  .product-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px;
+  }
+  .product-card .row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .product-card .pname{font-weight:600;font-size:15px;}
+  .product-card .ptag{
+    font-family:var(--mono);font-size:10.5px;color:var(--accent);
+    background:#241c0c;border:1px solid var(--accent-dim);
+    padding:2.5px 9px 2.5px 16px;white-space:nowrap;margin-top:5px;display:inline-flex;align-items:center;
+    position:relative;border-radius:3px 8px 8px 3px;letter-spacing:.02em;
+  }
+  .product-card .ptag::before{
+    content:'';position:absolute;left:6px;top:50%;transform:translateY(-50%);
+    width:4px;height:4px;border-radius:50%;background:var(--bg);border:1px solid var(--accent-dim);
+  }
+  .product-card .pmeta{font-size:12px;color:var(--text-muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;}
+  .product-card .pmeta b{color:var(--text);font-weight:600;}
+  .product-card .stockline{display:flex;align-items:center;justify-content:space-between;margin-top:10px;}
+  .product-card .qty-display{font-family:var(--mono);font-size:19px;font-weight:700;}
+  .product-card .qty-display.crit{color:var(--danger);}
+  .product-card .qty-display.ok{color:var(--pos);}
+  .product-card .unit{font-size:11px;color:var(--text-muted);margin-left:4px;font-weight:400;}
+  .move-btns{display:flex;gap:6px;}
+  .mbtn{
+    width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);
+    color:var(--text);font-size:18px;font-weight:600;display:flex;align-items:center;justify-content:center;
+  }
+  .mbtn.plus{color:var(--pos);border-color:#1f4a3f;}
+  .mbtn.minus{color:var(--danger);border-color:#4a2529;}
+  .mbtn:active{transform:scale(.92);}
+
+  /* Movements */
+  .move-row{
+    display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--border);
+  }
+  .move-row:last-child{border-bottom:none;}
+  .move-icon{
+    width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-weight:700;font-size:16px;flex-shrink:0;
+  }
+  .move-icon.in{background:var(--pos-bg);color:var(--pos);}
+  .move-icon.out{background:var(--danger-bg);color:var(--danger);}
+  .move-info{flex:1;min-width:0;}
+  .move-info .mname{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .move-info .mmeta{font-size:11.5px;color:var(--text-muted);font-family:var(--mono);margin-top:2px;}
+  .move-qty{font-family:var(--mono);font-weight:700;font-size:14.5px;flex-shrink:0;}
+  .move-qty.in{color:var(--pos);}
+  .move-qty.out{color:var(--danger);}
+
+  .day-divider{font-family:var(--display);font-size:12.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin:20px 2px 8px;}
+
+  /* Bottom nav */
+  nav.tabbar{
+    position:fixed;bottom:0;left:0;right:0;
+    display:flex;justify-content:center;
+    z-index:10;
+  }
+  nav.tabbar .inner{
+    max-width:520px;width:100%;display:flex;gap:4px;
+    background:rgba(23,26,31,.94);backdrop-filter:blur(16px);
+    border-top:1px solid var(--border);
+    padding:9px 10px calc(10px + env(safe-area-inset-bottom));
+  }
+  .tab-btn{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+    background:none;border:none;color:var(--text-muted);font-family:var(--sans);font-size:10.5px;
+    padding:7px 0;border-radius:12px;font-weight:500;
+  }
+  .tab-btn.active{color:var(--accent-ink);background:var(--accent);}
+  .tab-btn svg{width:21px;height:21px;}
+
+  .fab{
+    position:fixed;right:calc(50% - 260px + 18px);bottom:calc(80px + env(safe-area-inset-bottom));
+    width:56px;height:56px;border-radius:16px;border:none;
+    background:var(--accent);color:var(--accent-ink);font-size:26px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 10px 24px rgba(255,176,32,.3),0 0 0 1px rgba(255,176,32,.15);z-index:9;
+  }
+  .fab:active{transform:scale(.94);}
+  @media (max-width:559px){ .fab{right:20px;} }
+
+  /* Modal */
+  .sheet-backdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:none;
+  }
+  .sheet-backdrop.open{display:block;}
+  .sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:21;
+    background:var(--surface);border-top:1px solid var(--border);
+    border-radius:20px 20px 0 0;
+    max-width:520px;margin:0 auto;
+    padding:16px 20px calc(20px + env(safe-area-inset-bottom));
+    max-height:88vh;overflow-y:auto;
+    transform:translateY(100%);transition:transform .25s ease;
+  }
+  .sheet.open{transform:translateY(0);}
+  .sheet-handle{width:36px;height:4px;background:var(--border);border-radius:3px;margin:0 auto 14px;}
+  .sheet h2{margin:0 0 16px;font-family:var(--display);font-size:19px;font-weight:600;text-transform:uppercase;letter-spacing:.01em;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:5px;font-weight:600;}
+  .field input,.field select{
+    width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:11px 12px;color:var(--text);font-size:15px;font-family:var(--sans);outline:none;
+  }
+  .field input:focus,.field select:focus{border-color:var(--accent);}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .sheet-actions{display:flex;gap:10px;margin-top:18px;}
+  .btn{
+    flex:1;padding:13px;border-radius:11px;border:none;font-size:15px;font-weight:600;font-family:var(--sans);
+  }
+  .btn.primary{background:var(--accent);color:var(--accent-ink);}
+  .btn.ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--border);}
+  .btn.danger{background:var(--danger-bg);color:var(--danger);}
+  .btn:active{opacity:.85;}
+
+  ::-webkit-scrollbar{display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="top">
+    <div class="eyebrow">Depo Takip</div>
+    <h1 id="pageTitle">Panel</h1>
+  </header>
+  <div class="hazard"></div>
+
+  <main>
+
+    <!-- PANEL -->
+    <section class="view active" id="view-panel">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg>
+          <div class="num" id="statVariety">0</div><div class="label">Ürün Çeşidi</div>
+        </div>
+        <div class="stat-card accent">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="18" height="13" rx="1.5"/><path d="M3 7l3-4h12l3 4"/><path d="M3 7h18"/></svg>
+          <div class="num" id="statTotal">0</div><div class="label">Toplam Stok</div>
+        </div>
+        <div class="stat-card warn">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 16H3L12 3z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>
+          <div class="num" id="statCritical">0</div><div class="label">Kritik Stok</div>
+        </div>
+        <div class="stat-card pos">
+          <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h6l2-4 4 8 2-4h4"/></svg>
+          <div class="num" id="statToday">0</div><div class="label">Bugünkü Hareket</div>
+        </div>
+      </div>
+
+      <div class="section-title">Kritik Stoktakiler <span class="count" id="critCount">0</span></div>
+      <div id="criticalList"></div>
+
+      <div class="section-title">Son Hareketler</div>
+      <div id="recentMoves"></div>
+    </section>
+
+    <!-- ENVANTER -->
+    <section class="view" id="view-inventory">
+      <div class="search-bar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B96A3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" id="searchInput" placeholder="Ürün adı, kod veya raf ara...">
+      </div>
+      <div id="inventoryList"></div>
+    </section>
+
+    <!-- HAREKETLER -->
+    <section class="view" id="view-movements">
+      <div id="movementsList"></div>
+    </section>
+
+  </main>
+
+  <button class="fab" id="fabAdd">+</button>
+
+  <nav class="tabbar">
+    <div class="inner">
+      <button class="tab-btn active" data-view="panel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Panel
+      </button>
+      <button class="tab-btn" data-view="inventory">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+        Envanter
+      </button>
+      <button class="tab-btn" data-view="movements">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h6l2-4 4 8 2-4h4"/></svg>
+        Hareketler
+      </button>
+    </div>
+  </nav>
+
+</div>
+
+<!-- ADD PRODUCT SHEET -->
+<div class="sheet-backdrop" id="backdrop"></div>
+<div class="sheet" id="productSheet">
+  <div class="sheet-handle"></div>
+  <h2 id="sheetTitle">Yeni Ürün Ekle</h2>
+  <input type="hidden" id="editId">
+  <div class="field"><label>Ürün Adı</label><input id="f_name" type="text" placeholder="Örn. M8 Vida Seti"></div>
+  <div class="field-row">
+    <div class="field"><label>Ürün Kodu</label><input id="f_code" type="text" placeholder="Örn. VID-M8-01"></div>
+    <div class="field"><label>Raf / Konum</label><input id="f_location" type="text" placeholder="Örn. A3-R2"></div>
+  </div>
+  <div class="field"><label>Kategori</label><input id="f_category" type="text" placeholder="Örn. Bağlantı Elemanları"></div>
+  <div class="field-row">
+    <div class="field"><label>Miktar</label><input id="f_qty" type="number" inputmode="decimal" placeholder="0"></div>
+    <div class="field"><label>Birim</label>
+      <select id="f_unit">
+        <option value="adet">adet</option>
+        <option value="kg">kg</option>
+        <option value="lt">lt</option>
+        <option value="m">m</option>
+        <option value="kutu">kutu</option>
+        <option value="paket">paket</option>
+      </select>
+    </div>
+  </div>
+  <div class="field"><label>Min. Stok (Kritik Seviye)</label><input id="f_min" type="number" inputmode="decimal" placeholder="0"></div>
+  <div class="sheet-actions">
+    <button class="btn ghost" id="cancelSheet">Vazgeç</button>
+    <button class="btn primary" id="saveSheet">Kaydet</button>
+  </div>
+</div>
+
+<!-- MOVEMENT SHEET -->
+<div class="sheet" id="moveSheet">
+  <div class="sheet-handle"></div>
+  <h2 id="moveTitle">Stok Hareketi</h2>
+  <input type="hidden" id="moveProductId">
+  <div class="field"><label>Miktar</label><input id="m_qty" type="number" inputmode="decimal" placeholder="0"></div>
+  <div class="field"><label>Not (opsiyonel)</label><input id="m_note" type="text" placeholder="Örn. Sayım düzeltmesi"></div>
+  <div class="sheet-actions">
+    <button class="btn ghost" id="cancelMove">Vazgeç</button>
+    <button class="btn primary" id="confirmMove">Onayla</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'depo_takip_data_v1';
+  let data = { products: [], movements: [] };
+
+  function load(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) data = JSON.parse(raw);
+    }catch(e){ console.error('Veri okunamadı', e); }
+  }
+  function save(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+    catch(e){ console.error('Veri kaydedilemedi', e); }
+  }
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function isToday(ts){
+    const d = new Date(ts), n = new Date();
+    return d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
+  }
+  function fmtDate(ts){
+    const d = new Date(ts);
+    return d.toLocaleDateString('tr-TR',{day:'2-digit',month:'short'}) + ' · ' + d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  // ---------- NAV ----------
+  const views = { panel:'view-panel', inventory:'view-inventory', movements:'view-movements' };
+  const titles = { panel:'Panel', inventory:'Envanter', movements:'Hareketler' };
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+      document.getElementById(views[btn.dataset.view]).classList.add('active');
+      document.getElementById('pageTitle').textContent = titles[btn.dataset.view];
+      renderAll();
+    });
+  });
+
+  // ---------- RENDER ----------
+  function renderAll(){
+    renderPanel();
+    renderInventory();
+    renderMovements();
+  }
+
+  function renderPanel(){
+    const products = data.products;
+    document.getElementById('statVariety').textContent = products.length;
+    document.getElementById('statTotal').textContent = products.reduce((s,p)=>s+Number(p.qty),0);
+    const critical = products.filter(p=>Number(p.qty) <= Number(p.min));
+    document.getElementById('statCritical').textContent = critical.length;
+    const todayMoves = data.movements.filter(m=>isToday(m.date));
+    document.getElementById('statToday').textContent = todayMoves.length;
+
+    document.getElementById('critCount').textContent = critical.length;
+    const critList = document.getElementById('criticalList');
+    if(critical.length===0){
+      critList.innerHTML = '<div class="empty">Kritik seviyede ürün yok — depo iyi durumda.</div>';
+    } else {
+      critList.innerHTML = critical.map(p=>`
+        <div class="critical-item">
+          <div>
+            <div class="name">${esc(p.name)}</div>
+            <div class="meta">${esc(p.code)} · ${esc(p.location)}</div>
+          </div>
+          <div class="qty">${p.qty} ${esc(p.unit)}</div>
+        </div>
+      `).join('');
+    }
+
+    const recent = [...data.movements].sort((a,b)=>b.date-a.date).slice(0,6);
+    const recentEl = document.getElementById('recentMoves');
+    if(recent.length===0){
+      recentEl.innerHTML = '<div class="empty">Henüz hareket kaydı yok.</div>';
+    } else {
+      recentEl.innerHTML = recent.map(moveRowHtml).join('');
+    }
+  }
+
+  function renderInventory(){
+    const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+    let list = data.products;
+    if(q){
+      list = list.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.code.toLowerCase().includes(q) ||
+        p.location.toLowerCase().includes(q)
+      );
+    }
+    list = [...list].sort((a,b)=>a.name.localeCompare(b.name,'tr'));
+    const el = document.getElementById('inventoryList');
+    if(list.length===0){
+      el.innerHTML = `<div class="empty">${data.products.length===0 ? 'Henüz ürün eklenmedi. Sağ alttaki + ile başla.' : 'Sonuç bulunamadı.'}</div>`;
+      return;
+    }
+    el.innerHTML = list.map(p=>{
+      const isCrit = Number(p.qty) <= Number(p.min);
+      return `
+      <div class="product-card" data-id="${p.id}">
+        <div class="row-top">
+          <div>
+            <div class="pname">${esc(p.name)}</div>
+            <span class="ptag">${esc(p.code)}</span>
+          </div>
+        </div>
+        <div class="pmeta">
+          <span>Raf: <b>${esc(p.location)}</b></span>
+          <span>Kategori: <b>${esc(p.category||'—')}</b></span>
+          <span>Min: <b>${p.min} ${esc(p.unit)}</b></span>
+        </div>
+        <div class="stockline">
+          <div class="qty-display ${isCrit?'crit':'ok'}">${p.qty}<span class="unit">${esc(p.unit)}</span></div>
+          <div class="move-btns">
+            <button class="mbtn minus" data-act="out" data-id="${p.id}">−</button>
+            <button class="mbtn plus" data-act="in" data-id="${p.id}">+</button>
+            <button class="mbtn" data-act="edit" data-id="${p.id}">✎</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function moveRowHtml(m){
+    const p = data.products.find(x=>x.id===m.productId);
+    const name = p ? p.name : '(silinmiş ürün)';
+    return `
+      <div class="move-row">
+        <div class="move-icon ${m.type}">${m.type==='in'?'↑':'↓'}</div>
+        <div class="move-info">
+          <div class="mname">${esc(name)}</div>
+          <div class="mmeta">${fmtDate(m.date)}${m.note?' · '+esc(m.note):''}</div>
+        </div>
+        <div class="move-qty ${m.type}">${m.type==='in'?'+':'−'}${m.qty}</div>
+      </div>`;
+  }
+
+  function renderMovements(){
+    const el = document.getElementById('movementsList');
+    const sorted = [...data.movements].sort((a,b)=>b.date-a.date);
+    if(sorted.length===0){
+      el.innerHTML = '<div class="empty">Henüz hareket kaydı yok.</div>';
+      return;
+    }
+    let html = '';
+    let lastDay = null;
+    sorted.forEach(m=>{
+      const d = new Date(m.date);
+      const dayKey = d.toDateString();
+      if(dayKey !== lastDay){
+        lastDay = dayKey;
+        const label = isToday(m.date) ? 'Bugün' : d.toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric'});
+        html += `<div class="day-divider">${label}</div>`;
+      }
+      html += moveRowHtml(m);
+    });
+    el.innerHTML = html;
+  }
+
+  function esc(s){
+    return String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------- SEARCH ----------
+  document.getElementById('searchInput').addEventListener('input', renderInventory);
+
+  // ---------- PRODUCT SHEET ----------
+  const backdrop = document.getElementById('backdrop');
+  const productSheet = document.getElementById('productSheet');
+  const moveSheet = document.getElementById('moveSheet');
+
+  function openSheet(sheet){
+    backdrop.classList.add('open');
+    sheet.classList.add('open');
+  }
+  function closeSheets(){
+    backdrop.classList.remove('open');
+    productSheet.classList.remove('open');
+    moveSheet.classList.remove('open');
+  }
+  backdrop.addEventListener('click', closeSheets);
+
+  document.getElementById('fabAdd').addEventListener('click', ()=>{
+    document.getElementById('sheetTitle').textContent = 'Yeni Ürün Ekle';
+    document.getElementById('editId').value = '';
+    ['f_name','f_code','f_location','f_category','f_qty','f_min'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f_unit').value = 'adet';
+    openSheet(productSheet);
+  });
+  document.getElementById('cancelSheet').addEventListener('click', closeSheets);
+  document.getElementById('cancelMove').addEventListener('click', closeSheets);
+
+  document.getElementById('saveSheet').addEventListener('click', ()=>{
+    const name = document.getElementById('f_name').value.trim();
+    const code = document.getElementById('f_code').value.trim();
+    const location = document.getElementById('f_location').value.trim();
+    const category = document.getElementById('f_category').value.trim();
+    const qty = Number(document.getElementById('f_qty').value || 0);
+    const unit = document.getElementById('f_unit').value;
+    const min = Number(document.getElementById('f_min').value || 0);
+    const editId = document.getElementById('editId').value;
+
+    if(!name || !code){
+      alert('Ürün Adı ve Ürün Kodu zorunludur.');
+      return;
+    }
+
+    if(editId){
+      const p = data.products.find(x=>x.id===editId);
+      if(p){ Object.assign(p, {name,code,location,category,unit,min}); }
+    } else {
+      data.products.push({ id: uid(), name, code, location, category, qty, unit, min, createdAt: Date.now() });
+      if(qty > 0){
+        data.movements.push({ id: uid(), productId: data.products[data.products.length-1].id, type:'in', qty, date: Date.now(), note:'İlk stok girişi' });
+      }
+    }
+    save();
+    closeSheets();
+    renderAll();
+  });
+
+  // Edit / delete from product card
+  document.getElementById('inventoryList').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.mbtn');
+    if(!btn) return;
+    const id = btn.dataset.id;
+    const act = btn.dataset.act;
+    const p = data.products.find(x=>x.id===id);
+    if(!p) return;
+
+    if(act==='edit'){
+      document.getElementById('sheetTitle').textContent = 'Ürünü Düzenle';
+      document.getElementById('editId').value = p.id;
+      document.getElementById('f_name').value = p.name;
+      document.getElementById('f_code').value = p.code;
+      document.getElementById('f_location').value = p.location;
+      document.getElementById('f_category').value = p.category;
+      document.getElementById('f_qty').value = p.qty;
+      document.getElementById('f_unit').value = p.unit;
+      document.getElementById('f_min').value = p.min;
+      openSheet(productSheet);
+    } else {
+      document.getElementById('moveTitle').textContent = (act==='in' ? 'Stok Girişi — ' : 'Stok Çıkışı — ') + p.name;
+      document.getElementById('moveProductId').value = p.id;
+      document.getElementById('moveProductId').dataset.type = act;
+      document.getElementById('m_qty').value = '';
+      document.getElementById('m_note').value = '';
+      openSheet(moveSheet);
+    }
+  });
+
+  document.getElementById('confirmMove').addEventListener('click', ()=>{
+    const id = document.getElementById('moveProductId').value;
+    const type = document.getElementById('moveProductId').dataset.type;
+    const qty = Number(document.getElementById('m_qty').value || 0);
+    const note = document.getElementById('m_note').value.trim();
+    const p = data.products.find(x=>x.id===id);
+    if(!p || qty<=0){ closeSheets(); return; }
+
+    if(type==='out' && qty > Number(p.qty)){
+      if(!confirm('Girilen miktar mevcut stoktan fazla. Yine de devam edilsin mi?')) return;
+    }
+
+    p.qty = type==='in' ? Number(p.qty)+qty : Math.max(0, Number(p.qty)-qty);
+    data.movements.push({ id: uid(), productId: p.id, type, qty, date: Date.now(), note });
+    save();
+    closeSheets();
+    renderAll();
+  });
+
+  // ---------- INIT ----------
+  load();
+  renderAll();
+})();
+</script>
+</body>
+</html>
