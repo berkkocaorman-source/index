@@ -141,6 +141,10 @@
     content:'';position:absolute;left:6px;top:50%;transform:translateY(-50%);
     width:4px;height:4px;border-radius:50%;background:var(--bg);border:1px solid var(--accent-dim);
   }
+  .product-card .ptag.warn{
+    color:var(--danger);background:var(--danger-bg);border-color:#5c2529;
+  }
+  .product-card .ptag.warn::before{background:var(--bg);border-color:#5c2529;}
   .product-card .pmeta{font-size:12px;color:var(--text-muted);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;}
   .product-card .pmeta b{color:var(--text);font-weight:600;}
   .product-card .stockline{display:flex;align-items:center;justify-content:space-between;margin-top:10px;}
@@ -288,6 +292,9 @@
         </div>
       </div>
 
+      <div class="section-title">Son Kullanma Tarihi Yaklaşanlar <span class="count" id="expCount">0</span></div>
+      <div id="expiringList"></div>
+
       <div class="section-title">Kritik Stoktakiler <span class="count" id="critCount">0</span></div>
       <div id="criticalList"></div>
 
@@ -299,10 +306,16 @@
     <section class="view" id="view-inventory">
       <div class="search-bar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B96A3" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="text" id="searchInput" placeholder="Ürün adı, kod veya raf ara...">
+        <input type="text" id="searchInput" placeholder="Ürün adı veya raf ara...">
       </div>
       <div class="category-chips" id="categoryChips"></div>
       <div id="inventoryList"></div>
+    </section>
+
+    <!-- SON KULLANMA TARİHİ -->
+    <section class="view" id="view-skt">
+      <div class="section-title">Yaklaşan / Geçmiş Tarihler <span class="count" id="sktCount">0</span></div>
+      <div id="sktList"></div>
     </section>
 
     <!-- HAREKETLER -->
@@ -328,6 +341,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h6l2-4 4 8 2-4h4"/></svg>
         Hareketler
       </button>
+      <button class="tab-btn" data-view="skt">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4M16 2v4"/><path d="M8 14l2 2 4-4" /></svg>
+        SKT
+      </button>
     </div>
   </nav>
 
@@ -341,7 +358,7 @@
   <input type="hidden" id="editId">
   <div class="field"><label>Ürün Adı</label><input id="f_name" type="text" placeholder="Örn. M8 Vida Seti"></div>
   <div class="field-row">
-    <div class="field"><label>Ürün Kodu</label><input id="f_code" type="text" placeholder="Örn. VID-M8-01"></div>
+    <div class="field"><label>Son Kullanma Tarihi (opsiyonel)</label><input id="f_expiry" type="date"></div>
     <div class="field"><label>Raf / Konum</label><input id="f_location" type="text" placeholder="Örn. A3-R2"></div>
   </div>
   <div class="field">
@@ -368,6 +385,7 @@
   </div>
   <div class="field"><label>Min. Stok (Kritik Seviye)</label><input id="f_min" type="number" inputmode="decimal" placeholder="0"></div>
   <div class="sheet-actions">
+    <button class="btn danger" id="deleteProduct" style="display:none;">Sil</button>
     <button class="btn ghost" id="cancelSheet">Vazgeç</button>
     <button class="btn primary" id="saveSheet">Kaydet</button>
   </div>
@@ -439,10 +457,26 @@
     const d = new Date(ts);
     return d.toLocaleDateString('tr-TR',{day:'2-digit',month:'short'}) + ' · ' + d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
   }
+  const EXPIRY_WARN_DAYS = 20;
+  function daysUntil(dateStr){
+    if(!dateStr) return null;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const target = new Date(dateStr + 'T00:00:00');
+    return Math.round((target - today) / 86400000);
+  }
+  function fmtExpiry(dateStr){
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('tr-TR',{day:'2-digit',month:'short',year:'numeric'});
+  }
+  function expiryLabel(days){
+    if(days < 0) return `${Math.abs(days)} gün geçti`;
+    if(days === 0) return 'Bugün doluyor';
+    return `${days} gün kaldı`;
+  }
 
   // ---------- NAV ----------
-  const views = { panel:'view-panel', inventory:'view-inventory', movements:'view-movements' };
-  const titles = { panel:'Panel', inventory:'Envanter', movements:'Hareketler' };
+  const views = { panel:'view-panel', inventory:'view-inventory', movements:'view-movements', skt:'view-skt' };
+  const titles = { panel:'Panel', inventory:'Envanter', movements:'Hareketler', skt:'Son Kullanma Tarihi' };
   document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -459,6 +493,7 @@
     renderPanel();
     renderInventory();
     renderMovements();
+    renderSkt();
   }
 
   function renderPanel(){
@@ -479,9 +514,28 @@
         <div class="critical-item">
           <div>
             <div class="name">${esc(p.name)}</div>
-            <div class="meta">${esc(p.code)} · ${esc(p.location)}</div>
+            <div class="meta">${esc(p.location)}</div>
           </div>
           <div class="qty">${p.qty} ${esc(p.unit)}</div>
+        </div>
+      `).join('');
+    }
+
+    const expiring = products
+      .filter(p => p.expiry && daysUntil(p.expiry) <= EXPIRY_WARN_DAYS)
+      .sort((a,b)=> daysUntil(a.expiry) - daysUntil(b.expiry));
+    document.getElementById('expCount').textContent = expiring.length;
+    const expList = document.getElementById('expiringList');
+    if(expiring.length===0){
+      expList.innerHTML = '<div class="empty">Yaklaşan son kullanma tarihi yok.</div>';
+    } else {
+      expList.innerHTML = expiring.map(p=>`
+        <div class="critical-item">
+          <div>
+            <div class="name">${esc(p.name)}</div>
+            <div class="meta">${esc(p.location)} · ${fmtExpiry(p.expiry)}</div>
+          </div>
+          <div class="qty">${expiryLabel(daysUntil(p.expiry))}</div>
         </div>
       `).join('');
     }
@@ -495,6 +549,29 @@
     }
   }
 
+  function renderSkt(){
+    const withExpiry = data.products.filter(p=>p.expiry).sort((a,b)=> daysUntil(a.expiry) - daysUntil(b.expiry));
+    document.getElementById('sktCount').textContent = withExpiry.length;
+    const el = document.getElementById('sktList');
+    if(withExpiry.length===0){
+      el.innerHTML = '<div class="empty">Son kullanma tarihi girilmiş ürün yok.</div>';
+      return;
+    }
+    el.innerHTML = withExpiry.map(p=>{
+      const days = daysUntil(p.expiry);
+      const soon = days <= EXPIRY_WARN_DAYS;
+      return `
+        <div class="${soon ? 'critical-item' : 'product-card'}" ${soon?'':'style="padding:12px 14px;"'}>
+          <div>
+            <div class="name" style="${soon?'':'font-weight:600;font-size:15px;'}">${esc(p.name)}</div>
+            <div class="meta" style="${soon?'':'font-size:12px;color:var(--text-muted);margin-top:4px;'}">${esc(p.location)} · ${fmtExpiry(p.expiry)}</div>
+          </div>
+          <div class="${soon?'qty':''}" style="${soon?'':'font-family:var(--mono);font-weight:700;color:var(--text-muted);'}">${expiryLabel(days)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
   function renderInventory(){
     renderCategoryChips();
     const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
@@ -505,7 +582,6 @@
     if(q){
       list = list.filter(p =>
         p.name.toLowerCase().includes(q) ||
-        p.code.toLowerCase().includes(q) ||
         p.location.toLowerCase().includes(q)
       );
     }
@@ -517,12 +593,18 @@
     }
     el.innerHTML = list.map(p=>{
       const isCrit = Number(p.qty) <= Number(p.min);
+      let expiryTag = '';
+      if(p.expiry){
+        const days = daysUntil(p.expiry);
+        const soon = days <= EXPIRY_WARN_DAYS;
+        expiryTag = `<span class="ptag${soon?' warn':''}">${fmtExpiry(p.expiry)} · ${expiryLabel(days)}</span>`;
+      }
       return `
       <div class="product-card" data-id="${p.id}">
         <div class="row-top">
           <div>
             <div class="pname">${esc(p.name)}</div>
-            <span class="ptag">${esc(p.code)}</span>
+            ${expiryTag}
           </div>
         </div>
         <div class="pmeta">
@@ -635,9 +717,10 @@
   document.getElementById('fabAdd').addEventListener('click', ()=>{
     document.getElementById('sheetTitle').textContent = 'Yeni Ürün Ekle';
     document.getElementById('editId').value = '';
-    ['f_name','f_code','f_location','f_qty','f_min'].forEach(id=>document.getElementById(id).value='');
+    ['f_name','f_expiry','f_location','f_qty','f_min'].forEach(id=>document.getElementById(id).value='');
     populateCategorySelect('');
     document.getElementById('f_unit').value = 'adet';
+    document.getElementById('deleteProduct').style.display = 'none';
     openSheet(productSheet);
   });
   document.getElementById('cancelSheet').addEventListener('click', closeSheets);
@@ -645,7 +728,7 @@
 
   document.getElementById('saveSheet').addEventListener('click', ()=>{
     const name = document.getElementById('f_name').value.trim();
-    const code = document.getElementById('f_code').value.trim();
+    const expiry = document.getElementById('f_expiry').value;
     const location = document.getElementById('f_location').value.trim();
     let category = document.getElementById('f_category').value;
     const qty = Number(document.getElementById('f_qty').value || 0);
@@ -653,8 +736,8 @@
     const min = Number(document.getElementById('f_min').value || 0);
     const editId = document.getElementById('editId').value;
 
-    if(!name || !code){
-      alert('Ürün Adı ve Ürün Kodu zorunludur.');
+    if(!name){
+      alert('Ürün Adı zorunludur.');
       return;
     }
 
@@ -667,13 +750,25 @@
 
     if(editId){
       const p = data.products.find(x=>x.id===editId);
-      if(p){ Object.assign(p, {name,code,location,category,unit,min}); }
+      if(p){ Object.assign(p, {name,expiry,location,category,unit,min}); }
     } else {
-      data.products.push({ id: uid(), name, code, location, category, qty, unit, min, createdAt: Date.now() });
+      data.products.push({ id: uid(), name, expiry, location, category, qty, unit, min, createdAt: Date.now() });
       if(qty > 0){
         data.movements.push({ id: uid(), productId: data.products[data.products.length-1].id, type:'in', qty, date: Date.now(), note:'İlk stok girişi' });
       }
     }
+    save();
+    closeSheets();
+    renderAll();
+  });
+
+  document.getElementById('deleteProduct').addEventListener('click', ()=>{
+    const editId = document.getElementById('editId').value;
+    if(!editId) return;
+    const p = data.products.find(x=>x.id===editId);
+    if(!p) return;
+    if(!confirm(`"${p.name}" ürününü silmek istediğine emin misin? Bu ürüne ait hareket geçmişi kalır ama ürün envanterden kalkar.`)) return;
+    data.products = data.products.filter(x=>x.id!==editId);
     save();
     closeSheets();
     renderAll();
@@ -692,12 +787,13 @@
       document.getElementById('sheetTitle').textContent = 'Ürünü Düzenle';
       document.getElementById('editId').value = p.id;
       document.getElementById('f_name').value = p.name;
-      document.getElementById('f_code').value = p.code;
+      document.getElementById('f_expiry').value = p.expiry || '';
       document.getElementById('f_location').value = p.location;
       populateCategorySelect(p.category);
       document.getElementById('f_qty').value = p.qty;
       document.getElementById('f_unit').value = p.unit;
       document.getElementById('f_min').value = p.min;
+      document.getElementById('deleteProduct').style.display = 'block';
       openSheet(productSheet);
     } else {
       document.getElementById('moveTitle').textContent = (act==='in' ? 'Stok Girişi — ' : 'Stok Çıkışı — ') + p.name;
